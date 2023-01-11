@@ -20,9 +20,16 @@ namespace PacketRecv.Main
         TIMED_WAIT,
         None, // UDP
     }
+
+    public enum ConnectionType
+    {
+        TCP,
+        UDP,
+        Other,
+    }
     public struct NetStat
     {
-        public string CType;
+        public ConnectionType CType;
         public string lAddress;
         public string FAddress;
         public State State;
