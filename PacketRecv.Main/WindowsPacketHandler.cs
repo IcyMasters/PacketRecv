@@ -15,7 +15,6 @@ namespace PacketRecv.Main
     /// </summary>
     public class WindowsPacketHandler
     {
-        private Process _processcreated;
         private int _targetpid = 0;
         private bool _returnlist;
         private int _time = 0;
@@ -26,52 +25,36 @@ namespace PacketRecv.Main
         public async Task<List<NetStat>> Start(int pid)
         {
             this._targetpid = pid;
-            this.CreateProcess(pid);
+            var process = this.CreateProcess();
             this.CreateTimer(this._time);
-            this.CloseProcess();
+            
             if (_returnlist == false)
             {
                 await _httprequest.DataHandler(this._packetslist);
             }
-            return await Task.FromResult(this._packetslist);
+            return this._packetslist;
 
         }
 
         public async Task<List<NetStat>> Start(string pName)
         {
-            int PidRes = this.FindPidFromName(pName);
-            if (PidRes == 0)
+            int pidRes = this.FindPidFromName(pName);
+            if (pidRes == 0)
             {
-                return await Task.FromResult(this._packetslist);
+                return this._packetslist;
             }
-            this._targetpid = PidRes;
-            this.CreateProcess(PidRes);
+            this._targetpid = pidRes;
+            var process = this.CreateProcess();
             this.CreateTimer(this._time);
-            this.CloseProcess();
             if (_returnlist == false)
             {
                 await _httprequest.DataHandler(this._packetslist);
             }
-            return await Task.FromResult(this._packetslist);
+            return this._packetslist;
         }
          
         
         #region Process Handler
-
-        public bool CloseProcess()
-        {
-            try
-            {
-                this._processcreated.CancelOutputRead();
-                this._processcreated.Close();
-                return true;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                return false;
-            }
-        }
         
 
         public int FindPidFromName(string pName)
@@ -96,16 +79,18 @@ namespace PacketRecv.Main
         /// -o => return pid of process that create packet
         /// -n => return ip & port in numeric format
         /// </summary>
-        /// <param name="pid"> Target's Process ID</param>
-        private void CreateProcess(int pid)
+        private Process CreateProcess()
         {
-            this._processcreated.StartInfo.FileName = "netstat.exe";
-            this._processcreated.StartInfo.Arguments =  pid + " -o -n";
-            this._processcreated.StartInfo.UseShellExecute = false;
-            this._processcreated.StartInfo.RedirectStandardOutput = true;
-            this._processcreated.Start();
-            this._processcreated.OutputDataReceived += ProcessOnOutputDataReceived;
-            this._processcreated.BeginOutputReadLine();
+            Process process = new Process();
+            process.StartInfo.FileName = "netstat.exe";
+            process.StartInfo.Arguments =  " -o -n";
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.Start();
+            process.OutputDataReceived += ProcessOnOutputDataReceived;
+            process.BeginOutputReadLine();
+            return process;
+
 
         }
         
@@ -115,52 +100,49 @@ namespace PacketRecv.Main
         #region Process Output Handler
         private void ProcessOnOutputDataReceived(object sender, DataReceivedEventArgs e)
         {
-            string data = e.Data;
-            this.DataToStruct(data);
+            var data = this.DataToStruct(e.Data);
+            if (data.Pid != 0)
+            {
+                this._packetslist.Add(data);
+            }
+
+            return;
         }
 
-        private void DataToStruct(string c)
+        private NetStat DataToStruct(string c)
         {
             var data = Regex.Split(c, "\\s+");
             
             if (!(data.Length >= 6))
             {
-                return;
+                return new NetStat();
             }
-            try
-            {
-                State state;
-                NetStat netStat = new NetStat();
+            State state;
+                
 
                 if (data[5] != this._targetpid.ToString())
                 {
-                    return;
+                    return new NetStat();
                 }
                 if (data[3].Split(':')[0].Equals("127.0.0.1") || data[3].Split(':')[0].Equals("198.0.0.1"))
                 {
-                    return;
+                    return new NetStat();
                 }
-
-                netStat.CType = data[1] == "TCP" ? ConnectionType.TCP : data[1] == "UDP" ? ConnectionType.UDP : ConnectionType.Other;
-                netStat.Pid = this._targetpid;
-                netStat.LAddress = netStat.iPAddress(data[2].Split(':')[0]);
-                netStat.FAddress = netStat.iPAddress(data[3].Split(':')[0]);
+                
                 if (!Enum.TryParse<State>(data[4], out state))
                 {
                     throw new Exception("State Cant Defined In List");
                 }
-                netStat.State = state;
-                this._packetslist.Add(netStat);
+                
+                NetStat netStat = new NetStat(
+                        data[1] == "TCP" ? ConnectionType.TCP : data[1] == "UDP" ? ConnectionType.UDP : ConnectionType.Other,
+                        IPAddress.Parse(data[2].Split(':')[0]),
+                        IPAddress.Parse(data[3].Split(':')[0]),
+                        state,
+                        this._targetpid
+                );
+                return netStat;
             }
-            catch (Exception e)
-            {
-                //Console.WriteLine(e);
-                //TODO Add Logger
-            }
-
-
-
-        }
 
 
 
@@ -180,7 +162,6 @@ namespace PacketRecv.Main
         public WindowsPacketHandler(bool returnlist, string ip, int time = 30)
         {
             this._returnlist = returnlist;
-            this._processcreated = new Process();
             this._time = time;
             this._httprequest.SiteAddress = ip;
         }
