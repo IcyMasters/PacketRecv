@@ -10,7 +10,7 @@ namespace PacketRecv.Main
     {
         private static readonly HttpClient Client = new HttpClient();
         public string SiteAddress { get; set; }
-        private List<NetStat> Netstats { get; set; }
+        
 
 
         private async Task SendRequest(string ip)
@@ -46,8 +46,7 @@ namespace PacketRecv.Main
 
         public async Task DataHandler(List<NetStat> nets)
         {
-            this.Netstats = nets;
-            foreach(var packet in this.Netstats)
+            foreach(var packet in nets)
             {
                 try
                 {
