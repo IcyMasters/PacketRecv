@@ -9,7 +9,7 @@ namespace PacketRecv.Main
     public class PacketRecv
     {
         private const int AF_INET = 2;
-        
+        // s
         #region TCP
         /*
          IPHLPAPI_DLL_LINKAGE DWORD GetExtendedTcpTable(
